@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/e-commerce_copy_generator/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>爆款工厂 - 电商主图文案生成工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              bg: { DEFAULT: '#0f1117', card: '#1a1d27', alt: '#22263a' },
+              primary: '#4f6ef7',
+              accent: '#f5a623',
+              success: '#52c41a',
+              warning: '#faad14',
+              danger: '#ff4d4f',
+              txt: { DEFAULT: '#ffffff', secondary: '#8b92a5', disabled: '#4a5270' },
+            },
+            fontFamily: {
+              mono: ['"DM Mono"', '"IBM Plex Mono"', 'monospace'],
+              sans: ['system-ui', '-apple-system', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body { margin: 0; padding: 0; background: #0f1117; color: #ffffff; font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+      @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+      .shimmer { background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+      .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+    <script type="module" crossorigin src="/e-commerce_copy_generator/assets/index-BagA6l_s.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
