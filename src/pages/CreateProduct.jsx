@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppState, useAppDispatch } from '../context/AppContext.jsx'
 import TagInput from '../components/TagInput.jsx'
 import FileUpload from '../components/FileUpload.jsx'
+import { singleTestProduct } from '../utils/testData.js'
 
 const categories = ['女装', '男装', '箱包', '鞋靴', '家居', '美妆', '数码', '其他']
 const audienceOptions = ['女性', '男性', '通用', '儿童']
@@ -17,7 +18,9 @@ const emptyForm = {
 
 export default function CreateProduct() {
   const { productId } = useParams()
-  const { products } = useAppState()
+  const [searchParams] = useSearchParams()
+  const isTestMode = searchParams.get('test') === '1'
+  const { products, nextId } = useAppState()
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
@@ -26,6 +29,7 @@ export default function CreateProduct() {
 
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
+  const [testFilled, setTestFilled] = useState(false)
 
   useEffect(() => {
     if (existing) {
@@ -46,8 +50,11 @@ export default function CreateProduct() {
         saveToAssets: false,
         notes: existing.notes || '',
       })
+    } else if (isTestMode && !testFilled) {
+      setForm({ ...singleTestProduct })
+      setTestFilled(true)
     }
-  }, [existing])
+  }, [existing, isTestMode])
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -102,6 +109,8 @@ export default function CreateProduct() {
       sellingPoints: form.sellingPoints.filter(Boolean),
     }
 
+    const newProductId = isEdit ? productId : `p${nextId}`
+
     if (isEdit) {
       dispatch({ type: 'UPDATE_PRODUCT', payload: { id: productId, ...payload } })
     } else {
@@ -121,7 +130,7 @@ export default function CreateProduct() {
     }
 
     if (andGenerate) {
-      navigate(isEdit ? `/generate/${productId}` : '/')
+      navigate(`/generate/${newProductId}`)
     } else {
       navigate('/')
     }
@@ -148,6 +157,16 @@ export default function CreateProduct() {
         </button>
         <h2 className="text-xl font-bold text-white">{isEdit ? '编辑商品' : '添加商品'}</h2>
       </div>
+
+      {isTestMode && (
+        <div className="mb-4 px-4 py-3 rounded-xl border border-dashed border-primary/40 bg-primary/[0.03] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>🧪</span>
+            <span className="text-primary text-xs font-medium">测试模式：已自动填充商品数据（含图片、参考素材、保存到素材库）</span>
+          </div>
+          <span className="text-txt-disabled text-[10px]">直接点击底部「⚡ 立即生成」测试下一步</span>
+        </div>
+      )}
 
       <div className="flex gap-6">
         {/* 左栏：表单 */}

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAppState, useAppDispatch } from '../context/AppContext.jsx'
-import { generateCopies } from '../utils/copyGenerator.js'
+import { generateCopies, generateCopiesAI } from '../utils/copyGenerator.js'
+import { isAIConfigured, generateImages, generateImage } from '../utils/aiApi.js'
 import DraftCard from '../components/DraftCard.jsx'
 import ImageCanvas from '../components/ImageCanvas.jsx'
+import AIImageCard from '../components/AIImageCard.jsx'
 import SaveTemplateModal from '../components/SaveTemplateModal.jsx'
 
 export default function GenerateResult() {
@@ -16,6 +18,10 @@ export default function GenerateResult() {
   const [loading, setLoading] = useState(false)
   const [copies, setCopies] = useState(null)
   const [collapsed, setCollapsed] = useState(false)
+  const [genSource, setGenSource] = useState(null)
+  const [genError, setGenError] = useState(null)
+  const [aiImages, setAiImages] = useState([null, null, null])
+  const [imagesLoading, setImagesLoading] = useState(false)
   const [saveModal, setSaveModal] = useState({ visible: false, copy: null, style: null, name: '' })
 
   useEffect(() => {
@@ -27,21 +33,63 @@ export default function GenerateResult() {
     }
   }, [product?.id])
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!product) return
     setLoading(true)
     setCopies(null)
+    setGenSource(null)
+    setGenError(null)
+    setAiImages([null, null, null])
 
-    // 模拟生成延迟
-    setTimeout(() => {
-      const result = generateCopies(product)
+    let result
+    try {
+      const { copies: aiResult, source, error } = await generateCopiesAI(product)
+      result = aiResult
       setCopies(result)
+      setGenSource(source)
+      if (error) setGenError(error)
       dispatch({
         type: 'SET_PRODUCT_DRAFTS',
         payload: { id: product.id, drafts: { copies: result, images: [] } },
       })
+    } catch (err) {
+      result = generateCopies(product)
+      setCopies(result)
+      setGenSource('template')
+      setGenError(err.message)
+      dispatch({
+        type: 'SET_PRODUCT_DRAFTS',
+        payload: { id: product.id, drafts: { copies: result, images: [] } },
+      })
+    } finally {
       setLoading(false)
-    }, 1500)
+    }
+
+    // 文案生成完成后，异步启动 AI 主图生成
+    if (isAIConfigured() && result) {
+      setImagesLoading(true)
+      try {
+        const imgs = await generateImages(product, result)
+        setAiImages(imgs)
+      } catch (e) {
+        console.error('AI 主图生成失败:', e)
+      } finally {
+        setImagesLoading(false)
+      }
+    }
+  }
+
+  const handleRetryImage = async (styleIndex) => {
+    const updated = [...aiImages]
+    updated[styleIndex] = { url: null, style: styleIndex, error: null }
+    setAiImages(updated)
+    try {
+      const url = await generateImage(product, copies?.[styleIndex], styleIndex)
+      updated[styleIndex] = { url, style: styleIndex, error: null }
+    } catch (err) {
+      updated[styleIndex] = { url: null, style: styleIndex, error: err.message }
+    }
+    setAiImages([...updated])
   }
 
   const handleUpdateCopy = (index, updated) => {
@@ -54,8 +102,28 @@ export default function GenerateResult() {
     })
   }
 
-  const handleDownloadAll = () => {
-    // 触发每个 canvas 的下载
+  const handleDownloadAll = async () => {
+    // AI 图片下载
+    const hasAiImages = aiImages.some((img) => img?.url)
+    if (hasAiImages) {
+      for (let i = 0; i < aiImages.length; i++) {
+        if (aiImages[i]?.url) {
+          try {
+            const res = await fetch(aiImages[i].url)
+            const blob = await res.blob()
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.download = `AI主图_方案${i + 1}.png`
+            link.href = url
+            link.click()
+            URL.revokeObjectURL(url)
+          } catch {
+            window.open(aiImages[i].url, '_blank')
+          }
+        }
+      }
+    }
+    // Canvas 图片下载
     const canvases = document.querySelectorAll('canvas')
     canvases.forEach((canvas, i) => {
       const link = document.createElement('a')
@@ -213,13 +281,79 @@ export default function GenerateResult() {
             </div>
           ) : copies ? (
             <div className="space-y-8">
-              {/* 主图草稿区 */}
+              {/* 生成来源提示 */}
+              {genSource && (
+                <div className={`mb-4 px-4 py-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                  genSource === 'ai'
+                    ? 'border-green-500/30 bg-green-500/[0.05] text-green-400'
+                    : 'border-yellow-500/30 bg-yellow-500/[0.05] text-yellow-400'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span>{genSource === 'ai' ? '🤖' : '📝'}</span>
+                    <span className="font-medium">
+                      {genSource === 'ai' ? 'AI 智能生成（SiliconFlow VLM）' : '模板规则生成'}
+                    </span>
+                    {genError && <span className="text-txt-disabled ml-2">· 回退原因：{genError}</span>}
+                  </div>
+                  {genSource === 'template' && isAIConfigured() && (
+                    <button onClick={handleGenerate} className="text-primary hover:text-blue-300 text-[11px]">
+                      🔄 重试 AI 生成
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* 关键词标签（AI 生成时才有） */}
+              {genSource === 'ai' && copies?.[0]?.keywords?.length > 0 && (
+                <div className="mb-4 glass rounded-xl p-4">
+                  <h4 className="text-white text-xs font-bold mb-2 flex items-center gap-1.5">
+                    <span>🏷️</span> AI 提取关键词
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...new Set(copies.flatMap((c) => c.keywords || []))].map((kw, i) => (
+                      <span key={i} className="text-[11px] px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI 主图草稿区 */}
+              {isAIConfigured() && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-white text-base font-bold flex items-center gap-2">
+                        <span className="w-6 h-6 rounded bg-green-500/20 flex items-center justify-center text-xs">🤖</span>
+                        AI 生成主图
+                      </h3>
+                      <p className="text-txt-disabled text-xs mt-0.5">3 种风格：白底简约 / 场景生活 / 促销海报</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[0, 1, 2].map((i) => (
+                      <AIImageCard
+                        key={i}
+                        imageUrl={aiImages[i]?.url || null}
+                        styleIndex={i}
+                        loading={imagesLoading && !aiImages[i]?.url && !aiImages[i]?.error}
+                        error={aiImages[i]?.error || null}
+                        onFavorite={() => handleFavorite(i)}
+                        onRetry={handleRetryImage}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Canvas 合成主图（备用 / 无 AI 时显示） */}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-white text-base font-bold flex items-center gap-2">
                       <span className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center text-xs">🖼️</span>
-                      主图草稿
+                      {isAIConfigured() ? '模板合成主图' : '主图草稿'}
                     </h3>
                     <p className="text-txt-disabled text-xs mt-0.5">3 个风格变体</p>
                   </div>

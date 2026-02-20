@@ -1,12 +1,15 @@
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppDispatch } from '../context/AppContext.jsx'
 import { parseExcel, downloadTemplate } from '../utils/excelParser.js'
+import { batchTestProducts } from '../utils/testData.js'
 
 export default function ImportProducts() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const fileRef = useRef(null)
+  const [searchParams] = useSearchParams()
+  const isTestMode = searchParams.get('test') === '1'
 
   const [step, setStep] = useState(1)
   const [dragging, setDragging] = useState(false)
@@ -15,6 +18,19 @@ export default function ImportProducts() {
   const [parsedData, setParsedData] = useState([])
   const [parseErrors, setParseErrors] = useState([])
   const [editingCell, setEditingCell] = useState(null)
+
+  const loadTestData = () => {
+    setParsedData(batchTestProducts.map((p) => ({ ...p })))
+    setParseErrors([])
+    setFileName('测试数据（5条示例商品）.xlsx')
+    setStep(2)
+  }
+
+  useEffect(() => {
+    if (isTestMode && parsedData.length === 0) {
+      loadTestData()
+    }
+  }, [isTestMode])
 
   const columns = ['name', 'category', 'brand', 'material', 'size', 'audience', 'price', 'platforms']
   const columnLabels = { name: '商品名称', category: '类目', brand: '品牌', material: '材质', size: '尺寸规格', audience: '适用人群', price: '价格', platforms: '目标平台' }
@@ -101,6 +117,17 @@ export default function ImportProducts() {
         <h2 className="text-xl font-bold text-white">批量导入商品</h2>
       </div>
 
+      {/* 测试模式提示 */}
+      {isTestMode && (
+        <div className="mb-4 px-4 py-3 rounded-xl border border-dashed border-primary/40 bg-primary/[0.03] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>🧪</span>
+            <span className="text-primary text-xs font-medium">测试模式：已自动加载 5 条示例商品数据</span>
+          </div>
+          <span className="text-txt-disabled text-[10px]">检查数据 → 下一步 → 确认导入 → 回工作台批量生成</span>
+        </div>
+      )}
+
       {/* 步骤指示器 */}
       <div className="flex items-center gap-2 mb-8">
         {[1, 2, 3].map((s) => (
@@ -145,12 +172,20 @@ export default function ImportProducts() {
               {fileName && <p className="text-primary text-sm mt-3">已选择: {fileName}</p>}
             </div>
 
-            <button
-              onClick={downloadTemplate}
-              className="mt-4 text-sm text-primary hover:text-blue-300 transition-colors"
-            >
-              📋 下载导入模板
-            </button>
+            <div className="flex items-center gap-4 mt-4">
+              <button
+                onClick={downloadTemplate}
+                className="text-sm text-primary hover:text-blue-300 transition-colors"
+              >
+                📋 下载导入模板
+              </button>
+              <button
+                onClick={loadTestData}
+                className="text-sm text-warning hover:text-yellow-300 transition-colors"
+              >
+                🧪 加载测试数据（5条示例）
+              </button>
+            </div>
           </div>
 
           <div className="glass rounded-2xl p-8">

@@ -1,8 +1,32 @@
+import { generateWithAI, isAIConfigured } from './aiApi.js'
+
 /**
- * 文案规则拼接逻辑
+ * 文案生成逻辑
+ * - 优先使用 AI（SiliconFlow VLM）生成
+ * - AI 不可用或失败时回退到模板拼接
+ *
  * 输入：商品字段对象
- * 输出：3组文案对象 { title, subtitle, bullets, hook }
+ * 输出：3组文案对象 { title, subtitle, bullets, hook, keywords? }
  */
+
+/**
+ * AI 生成文案（异步）
+ * 成功返回 AI 结果，失败回退到模板
+ */
+export async function generateCopiesAI(product) {
+  if (!isAIConfigured()) {
+    console.warn('AI 未配置，使用模板生成')
+    return { copies: generateCopies(product), source: 'template' }
+  }
+
+  try {
+    const copies = await generateWithAI(product)
+    return { copies, source: 'ai' }
+  } catch (err) {
+    console.error('AI 生成失败，回退到模板:', err.message)
+    return { copies: generateCopies(product), source: 'template', error: err.message }
+  }
+}
 
 const titleTemplates = [
   [
